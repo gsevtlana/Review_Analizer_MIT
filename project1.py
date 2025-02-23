@@ -1,7 +1,9 @@
+from cProfile import label
 from string import punctuation, digits
 import numpy as np
 import random
 
+import theta
 
 
 #==============================================================================
@@ -38,9 +40,10 @@ def hinge_loss_single(feature_vector, label, theta, theta_0):
         the hinge loss, as a float, associated with the given data point and
         parameters.
     """
-    # Your code here
-    raise NotImplementedError
 
+    z = label * (np.dot(theta, feature_vector) + theta_0)
+    single_hinge_loss = max(0, 1 - z)
+    return single_hinge_loss
 
 
 def hinge_loss_full(feature_matrix, labels, theta, theta_0):
@@ -60,8 +63,17 @@ def hinge_loss_full(feature_matrix, labels, theta, theta_0):
         parameters.  This number should be the average hinge loss across all of
     """
 
-    # Your code here
-    raise NotImplementedError
+    total_loss = 0.0
+    num_samples = feature_matrix.shape[0]
+
+    for i in range(num_samples):
+        feature_vector = feature_matrix[i]
+        label = labels[i]
+        loss = max(0, 1 - label * (np.dot(theta, feature_vector) + theta_0))
+        total_loss += loss
+
+    average_loss = total_loss / num_samples
+    return average_loss
 
 
 
@@ -87,8 +99,16 @@ def perceptron_single_step_update(
         the updated feature-coefficient parameter `theta` as a numpy array
         the updated offset parameter `theta_0` as a floating point number
     """
-    # Your code here
-    raise NotImplementedError
+    tx = np.dot(current_theta, feature_vector)
+    txtz = tx + current_theta_0
+    ytx = label * tx
+    ytxtz = label * txtz
+
+    if ytxtz <= 0:
+        current_theta = current_theta + label * feature_vector
+        current_theta_0 = current_theta_0 + label
+
+    return current_theta, current_theta_0
 
 
 
@@ -114,14 +134,14 @@ def perceptron(feature_matrix, labels, T):
         the offset parameter `theta_0` as a floating point number
             (found also after T iterations through the feature matrix).
     """
-    # Your code here
-    raise NotImplementedError
+    n_samples, n_features = feature_matrix.shape
+    theta = np.zeros(n_features)
+    theta_0 = 0.0
+
     for t in range(T):
-        for i in get_order(nsamples):
-            # Your code here
-            raise NotImplementedError
-    # Your code here
-    raise NotImplementedError
+        for i in get_order(n_samples):
+            theta, theta_0 = perceptron_single_step_update(feature_matrix[i], labels[i], theta, theta_0)
+    return theta, theta_0
 
 
 
@@ -151,8 +171,26 @@ def average_perceptron(feature_matrix, labels, T):
         the average offset parameter `theta_0` as a floating point number
             (averaged also over T iterations through the feature matrix).
     """
-    # Your code here
-    raise NotImplementedError
+    n_samples, n_features = feature_matrix.shape
+    theta = np.zeros(n_features)
+    theta_0 = 0.0
+
+    # Initialize sums for averaging
+    theta_sum = np.zeros(n_features)
+    theta_0_sum = 0.0
+    count = 0
+    for t in range(T):
+        for i in get_order(n_samples):
+            theta, theta_0 = perceptron_single_step_update(feature_matrix[i], labels[i], theta, theta_0)
+            theta_sum += theta
+            theta_0_sum += theta_0
+            count += 1
+
+    # Calculate the average values
+    theta_avg = theta_sum / count
+    theta_0_avg = theta_0_sum / count
+
+    return theta_avg, theta_0_avg
 
 
 def pegasos_single_step_update(
@@ -182,8 +220,13 @@ def pegasos_single_step_update(
         real valued number with the value of theta_0 after the old updated has
         completed.
     """
-    # Your code here
-    raise NotImplementedError
+    if label * (np.dot(theta, feature_vector) + theta_0) <= 1:
+        theta = (1 - eta * L) * theta + eta * label * feature_vector
+        theta_0 = theta_0 + eta * label
+    else:
+        theta = (1 - eta * L) * theta
+
+    return theta, theta_0
 
 
 
@@ -214,8 +257,20 @@ def pegasos(feature_matrix, labels, T, L):
         the value of the theta_0, the offset classification parameter, found
         after T iterations through the feature matrix.
     """
-    # Your code here
-    raise NotImplementedError
+    n_samples, n_features = feature_matrix.shape
+    theta = np.zeros(n_features)
+    theta_0 = 0.0
+    t = 0
+
+    for _ in range(T):
+        for i in get_order(n_samples):
+            t += 1
+            eta = 1 / np.sqrt(t)
+            theta, theta_0 = pegasos_single_step_update(
+                feature_matrix[i], labels[i], L, eta, theta, theta_0
+            )
+
+    return theta, theta_0
 
 
 
@@ -251,8 +306,13 @@ def classify(feature_matrix, theta, theta_0):
         given theta and theta_0. If a prediction is GREATER THAN zero, it
         should be considered a positive classification.
     """
-    # Your code here
-    raise NotImplementedError
+    # Compute the decision function
+    decision_values = np.dot(feature_matrix, theta) + theta_0
+
+    # Classify based on the decision function
+    classifications = np.where(decision_values > 0, 1, -1)
+
+    return classifications
 
 
 def classifier_accuracy(
@@ -288,8 +348,21 @@ def classifier_accuracy(
         trained classifier on the training data and the second element is the
         accuracy of the trained classifier on the validation data.
     """
-    # Your code here
-    raise NotImplementedError
+    # Train the classifier
+    theta, theta_0 = classifier(train_feature_matrix, train_labels, **kwargs)
+
+    # Predict labels for training data
+    train_preds = classify(train_feature_matrix, theta, theta_0)
+
+    # Predict labels for validation data
+    val_preds = classify(val_feature_matrix, theta, theta_0)
+
+    train_accuracy = accuracy(train_preds, train_labels)
+
+    # Compute accuracy for validation data
+    val_accuracy = accuracy(val_preds, val_labels)
+
+    return train_accuracy, val_accuracy
 
 
 
@@ -303,7 +376,7 @@ def extract_words(text):
         count as their own words.
     """
     # Your code here
-    raise NotImplementedError
+    from string import punctuation, digits
 
     for c in punctuation + digits:
         text = text.replace(c, ' ' + c + ' ')
@@ -323,7 +396,8 @@ def bag_of_words(texts, remove_stopword=False):
         integer `index`.
     """
     # Your code here
-    raise NotImplementedError
+    with open('stopwords.txt', 'r') as file:
+        stopword = set(file.read().split())
     
     indices_by_word = {}  # maps word to unique index
     for text in texts:
@@ -355,8 +429,7 @@ def extract_bow_feature_vectors(reviews, indices_by_word, binarize=True):
             if word not in indices_by_word: continue
             feature_matrix[i, indices_by_word[word]] += 1
     if binarize:
-        # Your code here
-        raise NotImplementedError
+        feature_matrix[feature_matrix > 0] = 1
     return feature_matrix
 
 
